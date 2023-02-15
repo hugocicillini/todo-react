@@ -5,11 +5,31 @@ import { BsTrash, BsBookmarkCheck, BsBookmarkCheckFill } from "react-icons/bs"
 
 const API = "http://localhost:5000";
 
+const saveStateToLocalStorage = (state) => {
+  try {
+    const serializedState = JSON.stringify(state);
+    localStorage.setItem("todos", serializedState);
+  } catch (err) {
+    console.log(err);
+  }
+};
+
+const loadStateFromLocalStorage = () => {
+  try {
+    const serializedState = localStorage.getItem("todos");
+    if (serializedState === null) return [];
+    return JSON.parse(serializedState);
+  } catch (err) {
+    console.log(err);
+    return [];
+  }
+};
+
 function App() {
 
+  const [todos, setTodos] = useState([]);
   const [title, setTitle] = useState("");
   const [time, setTime] = useState("");
-  const [todos, setTodos] = useState([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -25,6 +45,7 @@ function App() {
       setLoading(false)
 
       setTodos(res)
+      setTodos(loadStateFromLocalStorage());
     };
 
     loadData()
@@ -38,7 +59,7 @@ function App() {
       id: Math.random(),
       title,
       time,
-      done: false,
+      done: false
     };
 
     await fetch(API + "/todos", {
@@ -52,7 +73,7 @@ function App() {
     setTodos((prevState) => [...prevState, todo])
 
     setTitle("")
-    setTime("")
+    setTime(0)
   };
 
   const handleDelete = async (id) => {
@@ -66,6 +87,10 @@ function App() {
   const handleEdit = async (todo) => {
 
     todo.done = !todo.done
+  
+    if (todo.done) {
+      todo.time = 0;
+    }
 
     const data = await fetch(API + "/todos/" + todo.id, {
       method: "PUT",
@@ -78,6 +103,28 @@ function App() {
     setTodos((prevState) =>
       prevState.map((t) => (t.id === data.id) ? (t = data) : t))
   }
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const newTasks = todos.map((task) => {
+        if (task.time > 0) {
+          return { ...task, time: task.time - 1 };
+        } else {
+          return task;
+        }
+      });
+      setTodos(newTasks);
+      saveStateToLocalStorage(newTasks)
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [todos]);
+
+  const formatTime = (time) => {
+    const hours = Math.floor(time / 3600);
+    const minutes = Math.floor((time % 3600) / 60);
+    const seconds = time % 60;
+    return `${hours < 10 ? '0' : ''}${hours}:${minutes < 10 ? '0' : ''}${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+  };
 
   if (loading) {
     return <p>Loading...</p>
@@ -98,7 +145,7 @@ function App() {
           </div>
 
           <div className="form-control">
-            <input type="text" name="time" placeholder='Duration (in hours)' onChange={(e) => setTime(e.target.value)} value={time || ""} required />
+            <input type="text" name="time" placeholder='Duration (in seconds)' onChange={(e) => setTime(parseInt(e.target.value))} value={time || ""} required />
           </div>
 
           <input type="submit" value="Create Task" />
@@ -112,7 +159,7 @@ function App() {
 
           <div className="todo" key={todo.id}>
             <h3 className={todo.done ? "todo-done" : ""}>{todo.title}</h3>
-            <p>Duration: {todo.time}h</p>
+            <p>Duration: {formatTime(todo.time)}h</p>
             <div className="actions">
               <span onClick={() => handleEdit(todo)}>
                 {!todo.done ? <BsBookmarkCheck /> : <BsBookmarkCheckFill />}
